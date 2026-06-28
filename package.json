@@ -1,0 +1,48 @@
+{
+  "name": "catqueue",
+  "version": "1.1.1",
+  "description": "Redis-free PostgreSQL job queue",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "readme": "README.md",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/karanrajsurya/CatQueue_npm_package.git"
+  },
+  "keywords": [
+    "cat",
+    "queue",
+    "catqueue",
+    "job scheduling",
+    "job queue",
+    "postgre-native",
+    "postgresql",
+    "no redis",
+    ""
+  ],
+  "author": "Karan Raj Surya",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/karanrajsurya/CatQueue_npm_package/issues"
+  },
+  "homepage": "https://github.com/karanrajsurya/CatQueue_npm_package#readme",
+  "dependencies": {
+    "pg": ">=8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "@types/pg": "^8.20.0"
+  },
+  "peerDependencies": {
+    "pg": ">=8.0.0"
+  }
+}
