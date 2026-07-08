@@ -28,8 +28,12 @@ export const workerThread = async (
     await pool.query(
       `
       UPDATE catqueue_jobs SET
-        status = $1, attempt_count = $2, run_at = $3,
-        locked_until = NULL, worker_id = NULL, error_log = $4
+        status = $1,
+        attempt_count = $2,
+        run_at = $3,
+        locked_until = NULL,
+        worker_id = NULL,
+        error_log = $4
       WHERE id = $5
     `,
       [

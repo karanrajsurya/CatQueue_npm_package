@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { randomUUID } from "crypto";
 import { CatQueueConfig, Handler, JobOptions } from "./types.js";
-import { processNextJob, recoverStuckJobs } from "./worker.js";
+import { processNextJob, recoverStuckJobs, cronJob } from "./worker.js";
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -15,12 +15,15 @@ export class CatQueue {
   private pollInterval: number;
   private lockDuration: number;
   private batchSize: number;
+  private maxAttempts: number;
+  private cron?: ReturnType<typeof cronJob>;
 
   constructor(config: CatQueueConfig) {
     this.pool = new Pool({ connectionString: config.connectionString });
     this.pollInterval = config.pollInterval ?? 1000;
     this.lockDuration = config.lockDuration ?? 30;
     this.batchSize = config.batchSize ?? 50;
+    this.maxAttempts = config.maxAttempts ?? 5;
   }
 
   async enqueue<T = any>(
@@ -52,8 +55,9 @@ export class CatQueue {
 
   start(): void {
     if (this.running) return;
-
     this.running = true;
+
+    this.cron = cronJob(this.pool);
 
     console.log(
       `[catqueue] Worker ${this.workerId} started, polling every ${this.pollInterval}ms`,
@@ -75,6 +79,7 @@ export class CatQueue {
               this.workerId,
               this.lockDuration,
               this.batchSize,
+              this.maxAttempts,
             )
           ) {
             didWork = true;
@@ -92,6 +97,8 @@ export class CatQueue {
 
   async stop(): Promise<void> {
     this.running = false;
+
+    this.cron?.stop();
 
     if (this.workerPromise) {
       await this.workerPromise;

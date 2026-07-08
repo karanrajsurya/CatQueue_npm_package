@@ -12,6 +12,7 @@ export interface CatQueueConfig {
   pollInterval?: number;
   lockDuration?: number;
   batchSize?: number;
+  maxAttempts?: number;
 }
 
 export interface Job {
@@ -28,4 +29,5 @@ export interface Job {
   idempotency_key: string | null;
   error_log: any[];
   created_at: Date;
+  completed_at: Date;
 }

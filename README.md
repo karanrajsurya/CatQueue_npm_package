@@ -139,6 +139,7 @@ const queue = new CatQueue({
   pollInterval?: number,     // ms between polls when queue is empty, default: 2000
   lockDuration?: number,     // seconds a job stays locked, default: 30
   batchSize?: number,        // jobs per batch, default: 50
+  maxAttempts?: number       // maximum attempts per job, default: 5
 });
 ```
 
@@ -190,7 +191,7 @@ Starts the worker loop. Polls continuously while jobs are available, sleeps for 
 
 Each poll cycle:
 
-1. Recovers stuck `PROCESSING` jobs with expired locks → resets to `PENDING`
+1. Recovers stuck `PROCESSING` jobs with expired locks every 20 seconds → resets to `PENDING`
 2. Atomically claims next batch via `SELECT FOR UPDATE SKIP LOCKED`
 3. Runs all jobs in batch concurrently via `Promise.all`
 4. On success → batch `UPDATE status = COMPLETED`
@@ -211,6 +212,29 @@ process.on("SIGINT", async () => {
 
 ---
 
+## Automatic Cleanup (Built-in Cron)
+
+catqueue runs a built-in weekly cron job every **Monday at 5:00 AM IST** that automatically deletes `COMPLETED` jobs older than 7 days — preventing unbounded table growth without any configuration.
+
+```sql
+-- what the cron runs internally
+DELETE FROM catqueue_jobs
+WHERE status = 'COMPLETED'
+AND completed_at < NOW() - INTERVAL '7 days'
+```
+
+This runs automatically when you call `queue.start()` and stops when you call `queue.stop()`. No configuration needed.
+
+If you want to keep completed jobs longer for auditing, you can query them before they're cleaned up:
+
+```sql
+SELECT * FROM catqueue_jobs
+WHERE status = 'COMPLETED'
+ORDER BY completed_at DESC;
+```
+
+(Soon to be added feature - allow user to manually choose if jobs should disappear or not, if yes, then after how many days)
+
 ## Job Lifecycle
 
 ```
@@ -229,11 +253,13 @@ PENDING → PROCESSING → COMPLETED
             DEAD
 ```
 
-Dead jobs stay in the database forever — queryable, replayable, auditable.
+Dead jobs are removed from the database after 7 days through cron. Before that, they are queryable, replayable, auditable.
 
 ---
 
 ## Retry Schedule
+
+It uses exponential backoff algorithm to ensure no job is enqueued simultaneously.
 
 | Attempt | Retry after |
 | ------- | ----------- |
@@ -257,22 +283,13 @@ Every failed attempt is appended to `error_log` as a JSON array:
 ]
 ```
 
-Query failed jobs directly in SQL:
-
-```sql
-SELECT id, job_name, error_log
-FROM catqueue_jobs
-WHERE status = 'DEAD'
-ORDER BY created_at DESC;
-```
-
 ---
 
 ## TypeScript
 
 Full generic support for typed payloads:
 
-```typescript
+```code
 interface EmailPayload {
   to: string;
   subject: string;
@@ -320,7 +337,6 @@ await queue.enqueue<EmailPayload>("send-email", {
 
 ## Live Demo
 
-- **Dashboard:** [catqueue.vercel.app](https://catqueue.vercel.app)
 - **Source:** [github.com/karanrajsurya/CatQueue](https://github.com/karanrajsurya/CatQueue)
 
 ---

@@ -1,6 +1,6 @@
 {
   "name": "catqueue",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Redis-free PostgreSQL job queue",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -36,6 +36,7 @@
   },
   "homepage": "https://github.com/karanrajsurya/CatQueue_npm_package#readme",
   "dependencies": {
+    "cron": "^4.4.0",
     "pg": ">=8.0.0"
   },
   "devDependencies": {

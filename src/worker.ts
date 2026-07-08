@@ -1,6 +1,7 @@
 import { Handler, Job } from "./types.js";
 import { Pool } from "pg";
 import { workerThread } from "./threading.js";
+import { CronJob } from "cron";
 
 const chunkify = (array: string[], chunk: number) => {
   const arrayCopy: string[] = [...array];
@@ -18,13 +19,16 @@ export const processNextJob = async (
   workerId: string,
   lockDuration: number,
   batchSize: number,
+  maxAttempts: number,
 ): Promise<Boolean> => {
   const { rows } = await pool.query<Job>(
     `
     UPDATE catqueue_jobs
-    SET status = 'PROCESSING',
-        locked_until = NOW() + INTERVAL '${lockDuration} seconds',
-        worker_id = $1
+    SET
+      worker_id = $1
+      status = 'PROCESSING',
+      max_attempts = $3
+      locked_until = NOW() + INTERVAL '${lockDuration} seconds',
     WHERE id IN (
       SELECT id FROM catqueue_jobs
       WHERE status = 'PENDING'
@@ -35,7 +39,7 @@ export const processNextJob = async (
     )
     RETURNING *
   `,
-    [workerId, batchSize],
+    [workerId, batchSize, maxAttempts],
   );
 
   if (rows.length == 0) return false;
@@ -53,7 +57,11 @@ export const processNextJob = async (
     await pool.query(
       `
       UPDATE catqueue_jobs
-      SET status = 'COMPLETED', locked_until = NULL, worker_id = NULL
+      SET
+        status = 'COMPLETED',
+        locked_until = NULL,
+        worker_id = NULL,
+        completed_at = Now()
       WHERE id = ANY($1::uuid[])
     `,
       [completedIds],
@@ -61,16 +69,6 @@ export const processNextJob = async (
   }
 
   return true;
-
-  //   const handler = handlers.get(job.job_name);
-
-  //   if (isMainThread) {
-  //     const chunks = chunkify(completedIds, concurrencyThreads);
-  //     chunks.forEach(() => {
-  //       const worker = new Worker("./threading.ts", {});
-  //     });
-  //   }
-  // }
 };
 
 export const recoverStuckJobs = async (pool: Pool): Promise<void> => {
@@ -80,3 +78,21 @@ export const recoverStuckJobs = async (pool: Pool): Promise<void> => {
     WHERE status = 'PROCESSING' AND locked_until < NOW()
   `);
 };
+
+export const cronJob = (pool: Pool) =>
+  new CronJob(
+    "0 5 * * 1",
+    async function () {
+      const result = await pool.query(`
+      DELETE FROM catqueue_jobs
+      WHERE status = 'COMPLETED'
+      AND completed_at < NOW() - INTERVAL '7 days'
+    `);
+      console.log(
+        `[catqueue] Cleanup: removed ${result.rowCount} completed jobs`,
+      );
+    },
+    null, // on completed - set null
+    true, // start automatically
+    "Asia/Kolkata",
+  );

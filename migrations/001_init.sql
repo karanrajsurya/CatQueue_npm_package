@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS catqueue_jobs (
   worker_id       TEXT,
   idempotency_key TEXT UNIQUE,
   error_log       JSONB,
-  created_at      TIMESTAMPTZ DEFAULT NOW()
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  completed_at    TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_catqueue_pending 
