@@ -3,32 +3,20 @@ import { Pool } from "pg";
 import { workerThread } from "./threading.js";
 import { CronJob } from "cron";
 
-const chunkify = (array: string[], chunk: number) => {
-  const arrayCopy: string[] = [...array];
-  let chunks = [];
-  for (var i = chunk; i > 0; i--) {
-    chunks.push(arrayCopy.splice(0, Math.ceil(array.length / i)));
-  }
-
-  return chunks;
-};
-
 export const processNextJob = async (
   pool: Pool,
   handlers: Map<string, Handler>,
   workerId: string,
   lockDuration: number,
   batchSize: number,
-  maxAttempts: number,
-): Promise<Boolean> => {
+): Promise<boolean> => {
   const { rows } = await pool.query<Job>(
     `
     UPDATE catqueue_jobs
     SET
-      worker_id = $1
+      worker_id = $1,
       status = 'PROCESSING',
-      max_attempts = $3
-      locked_until = NOW() + INTERVAL '${lockDuration} seconds',
+      locked_until = NOW() + make_interval(secs => $3)
     WHERE id IN (
       SELECT id FROM catqueue_jobs
       WHERE status = 'PENDING'
@@ -39,7 +27,7 @@ export const processNextJob = async (
     )
     RETURNING *
   `,
-    [workerId, batchSize, maxAttempts],
+    [workerId, batchSize, lockDuration],
   );
 
   if (rows.length == 0) return false;

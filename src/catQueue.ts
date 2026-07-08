@@ -79,7 +79,6 @@ export class CatQueue {
               this.workerId,
               this.lockDuration,
               this.batchSize,
-              this.maxAttempts,
             )
           ) {
             didWork = true;
