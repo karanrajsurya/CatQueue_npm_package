@@ -13,8 +13,11 @@ export const workerThread = async (
     await handler(job.payload);
     return true;
   } catch (error: any) {
-    const nextAttempt = job.attempt_count + 1;
-    const isDead = nextAttempt >= job.max_attempts;
+    console.error("[workerThread] caught error:", error.message);
+    const { nextAttempt, isDead, nextRunAt } = computeRetryState(
+      job.attempt_count,
+      job.max_attempts,
+    );
     const existingLog = Array.isArray(job.error_log) ? job.error_log : [];
     const newLog = [
       ...existingLog,
@@ -25,8 +28,29 @@ export const workerThread = async (
       },
     ];
 
-    await pool.query(
-      `
+    await updateNewJobs(
+      pool,
+      isDead ? "DEAD" : "PENDING",
+      nextAttempt,
+      nextRunAt,
+      JSON.stringify(newLog),
+      job.id,
+    );
+
+    return false;
+  }
+};
+
+export async function updateNewJobs(
+  pool: Pool,
+  status: string,
+  nextAttempt: number,
+  newRunAt: Date | null,
+  newErrorLog: string,
+  jobId: string,
+) {
+  return await pool.query(
+    `
       UPDATE catqueue_jobs SET
         status = $1,
         attempt_count = $2,
@@ -36,17 +60,16 @@ export const workerThread = async (
         error_log = $4
       WHERE id = $5
     `,
-      [
-        isDead ? "DEAD" : "PENDING",
-        nextAttempt,
-        isDead
-          ? job.run_at
-          : new Date(Date.now() + Math.pow(2, nextAttempt) * 1000),
-        JSON.stringify(newLog),
-        job.id,
-      ],
-    );
+    [status, nextAttempt, newRunAt, newErrorLog, jobId],
+  );
+}
 
-    return false;
-  }
-};
+export function computeRetryState(attemptCount: number, maxAttempts: number) {
+  const nextAttempt = attemptCount + 1;
+  const isDead = nextAttempt >= maxAttempts;
+  return {
+    nextAttempt,
+    isDead,
+    nextRunAt: isDead ? null : new Date(Date.now() + 2 ** nextAttempt * 1000),
+  };
+}
