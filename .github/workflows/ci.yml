@@ -38,4 +38,4 @@ jobs:
 
       - run: npm test
         env:
-          DATABASE_URL: postgresql://postgres:@localhost:5432/catqueue_test
+          DATABASE_URL: postgresql://postgres:@localhost:5433/catqueue_test
