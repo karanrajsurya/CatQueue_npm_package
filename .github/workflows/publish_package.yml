@@ -3,7 +3,7 @@ name: Publish Package
 on:
   push:
     tags:
-      - "v*" # fires only when you push a tag like v1.2.0
+      - "v*"
 
 jobs:
   publish:
@@ -13,9 +13,10 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: catqueue_test_db
         ports:
           - 5432:5432
         options: >-
@@ -35,6 +36,7 @@ jobs:
       - run: npm run build
       - run: npm test # never publish without re-running tests, even if CI already passed
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          DATABASE_TEST_URL: ${{ secrets.DATABASE_TEST_URL }}
 
-      - run: npm publish --provenance --access public
+      - run: npm publish --access public
+        env: NPM_SECRET: ${{ secrets.NPM_SECRET }}
