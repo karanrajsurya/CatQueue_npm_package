@@ -12,7 +12,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: catqueue_test
@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: echo "checkout worked"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: "npm"
@@ -38,4 +38,4 @@ jobs:
 
       - run: npm test
         env:
-          DATABASE_URL: postgresql://postgres:Karanatpostgresql@localhost:5433/catqueue_test_db
+          DATABASE_TEST_URL: ${{ secrets.DATABASE_TEST_URL }}
