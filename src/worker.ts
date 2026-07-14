@@ -72,6 +72,8 @@ export const cronJob = (pool: Pool) =>
     "Asia/Kolkata",
   );
 
+// helper functinons
+
 export async function cleanAllCompletedJobs(pool: Pool) {
   return pool.query(`
         DELETE FROM catqueue_jobs
