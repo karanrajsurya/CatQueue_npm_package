@@ -49,6 +49,29 @@ export class CatQueue {
     return rows[0].id;
   }
 
+  async enqueueBatch<T = any>(
+    jobs: { jobName: string; payload: T; options?: JobOptions }[],
+  ): Promise<string[]> {
+    const jobNames = jobs.map((j) => j.jobName);
+    const payloads = jobs.map((j) => JSON.stringify(j.payload));
+    const priorities = jobs.map((j) => j.options?.priority ?? 3);
+    const maxAttempts = jobs.map((j) => j.options?.maxAttempts ?? 5);
+    const runAts = jobs.map((j) => j.options?.runAt ?? new Date());
+    const idempotencyKeys = jobs.map((j) => j.options?.idempotencyKey ?? null);
+
+    const { rows } = await this.pool.query(
+      `
+    INSERT INTO catqueue_jobs (job_name, payload, priority, max_attempts, run_at, idempotency_key)
+    SELECT * FROM UNNEST(
+      $1::text[], $2::jsonb[], $3::int[], $4::int[], $5::timestamptz[], $6::text[]
+    )
+    RETURNING id
+    `,
+      [jobNames, payloads, priorities, maxAttempts, runAts, idempotencyKeys],
+    );
+    return rows.map((r) => r.id);
+  }
+
   register<T = any>(jobName: string, handler: Handler<T>): void {
     this.handlers.set(jobName, handler);
   }
