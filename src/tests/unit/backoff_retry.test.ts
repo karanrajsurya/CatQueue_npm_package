@@ -11,8 +11,7 @@ import {
 } from "vitest";
 
 const pool = new Pool({
-  connectionString:
-    "postgresql://postgres:Karanatpostgresql@localhost:5433/catqueue_test_db",
+  connectionString: process.env.DATABASE_TEST_URI,
 });
 
 beforeAll(async () => {

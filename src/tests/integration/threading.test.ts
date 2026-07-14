@@ -6,8 +6,7 @@ import { Handler, Job } from "../../types";
 const handlersFP = new Map<string, Handler>();
 
 const pool = new Pool({
-  connectionString:
-    "postgresql://postgres:Karanatpostgresql@localhost:5433/catqueue_test_db",
+  connectionString: process.env.DATABASE_TEST_URI,
 });
 
 handlersFP.set("test-job", async (_payload) => {
