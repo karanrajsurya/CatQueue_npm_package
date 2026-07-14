@@ -11,7 +11,7 @@ import {
 } from "vitest";
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_TEST_URI,
+  connectionString: process.env.DATABASE_TEST_URL,
 });
 
 beforeAll(async () => {

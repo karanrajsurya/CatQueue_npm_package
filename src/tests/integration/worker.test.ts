@@ -19,7 +19,7 @@ handlersFP.set("test-job", async (_payload) => {
 });
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_TEST_URI,
+  connectionString: process.env.DATABASE_TEST_URL,
 });
 
 // runs once before all tests

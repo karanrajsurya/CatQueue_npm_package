@@ -6,7 +6,7 @@ import { Handler, Job } from "../../types";
 const handlersFP = new Map<string, Handler>();
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_TEST_URI,
+  connectionString: process.env.DATABASE_TEST_URL,
 });
 
 handlersFP.set("test-job", async (_payload) => {
