@@ -1,5 +1,10 @@
 export type Handler<T = any> = (payload: T) => Promise<void>;
 
+export interface Edge {
+  id: string;
+  depends_on: string;
+}
+
 export interface JobOptions {
   priority?: number;
   maxAttempts?: number;
