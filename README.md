@@ -4,6 +4,21 @@
 
 Most job queues require Redis as a broker. catqueue doesn't. If you're already running PostgreSQL, you have everything you need — one table, one migration, three methods.
 
+In this README:
+
+- [Why catqueue?](#why-catqueue)
+- [Benchmark](#benchmark)
+- [Quick Start](#quick-start)
+- [API Reference](#api-reference)
+- [Automatic Cleanup](<#automatic-cleanup-(built-in-cron)>)
+- [Job Dependencies (DAG Execution)](<#job-dependencies-(dag-execution)-work-in-progress>)
+- [Job Lifecycle](#job-lifecycle)
+- [Retry Schedule](#retry-schedule)
+- [Error Logging](#error-logging)
+- [TypeScript](#typeScript)
+- [When to use catqueue vs BullMQ](#when-to-use-catqueue-vs-bullmq)
+- [Requirements](#requirements)
+
 ```bash
 npm install catqueue
 ```
@@ -235,6 +250,27 @@ ORDER BY completed_at DESC;
 
 (Soon to be added feature - allow user to manually choose if jobs should disappear or not, if yes, then after how many days)
 
+## Job Dependencies (DAG Execution) — Work in Progress
+
+catqueue is adding support for **job dependency graphs**, so jobs can declare "run only after these other jobs complete" instead of only being ordered by `priority`.
+
+**How it's designed to work:**
+
+- Each job carries a `dependencies: string[]` — the ids of jobs it depends on.
+- Before a batch runs, catqueue walks the dependency graph with a recursive query, pulling in every ancestor of the pending batch (not just edges within the current page), so a job never gets scheduled without its full dependency chain considered.
+- A job is only eligible to run once every dependency in that chain has a `COMPLETED` status.
+- Execution order within a batch is computed with a topological sort (Kahn's algorithm) over the dependency graph, instead of a flat `Promise.all`.
+- If a cycle is detected (e.g. A depends on B, B depends on A), the jobs involved are excluded from that run rather than deadlocking the batch.
+
+**Current status:** this lands the core algorithm (graph traversal + topological execution order), but two pieces of wiring aren't complete yet:
+
+- `migrations/001_init.sql` doesn't yet create the `job_dependencies` table or a `dependencies` column on `catqueue_jobs` — you'll need to add that schema yourself if you want to experiment with this before the migration is updated.
+- `queue.enqueue()` doesn't yet expose a `dependencies` option in `JobOptions` — for now, dependency edges must be set directly via SQL/DB access rather than through the public API.
+
+Treat this as a preview of the direction, not a ready-to-use feature — a future release will ship the migration update and the `enqueue()` API to make it usable end-to-end without touching the database directly.
+
+---
+
 ## Job Lifecycle
 
 ```
@@ -332,12 +368,6 @@ await queue.enqueue<EmailPayload>("send-email", {
 
 - Node.js 18+
 - PostgreSQL 13+ (`gen_random_uuid()` and `SKIP LOCKED` support)
-
----
-
-## Live Demo
-
-- **Source:** [github.com/karanrajsurya/CatQueue](https://github.com/karanrajsurya/CatQueue)
 
 ---
 
