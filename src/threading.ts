@@ -2,10 +2,19 @@ import { Handler, Job } from "./types.js";
 import { Pool } from "pg";
 
 export const workerThread = async (
-  job: Job,
+  jobs: string,
   pool: Pool,
   handlers: Map<string, Handler>,
 ): Promise<boolean> => {
+  const { rows } = await pool.query(
+    `
+    SELECT * FROM catqueue_jobs
+    WHERE id = $1::uuid[]
+    `,
+    [jobs],
+  );
+
+  const job = rows[0];
   const handler = handlers.get(job.job_name);
 
   try {

@@ -18,6 +18,7 @@ export interface CatQueueConfig {
   lockDuration?: number;
   batchSize?: number;
   maxAttempts?: number;
+  dependencies?: string[];
 }
 
 export interface Job {
@@ -33,6 +34,7 @@ export interface Job {
   worker_id: string | null;
   idempotency_key: string | null;
   error_log: any[];
+  dependencies: string[];
   created_at: Date;
   completed_at: Date;
 }

@@ -17,6 +17,7 @@ export class CatQueue {
   private batchSize: number;
   private maxAttempts: number;
   private cron?: ReturnType<typeof cronJob>;
+  private dependencies?: string[];
 
   constructor(config: CatQueueConfig) {
     this.pool = new Pool({ connectionString: config.connectionString });
@@ -24,6 +25,7 @@ export class CatQueue {
     this.lockDuration = config.lockDuration ?? 30;
     this.batchSize = config.batchSize ?? 50;
     this.maxAttempts = config.maxAttempts ?? 5;
+    this.dependencies = config.dependencies ?? [];
   }
 
   async enqueue<T = any>(

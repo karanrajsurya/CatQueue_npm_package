@@ -4,10 +4,19 @@ import { Edge } from "./types.js";
 export async function GraphProcess(pool: Pool) {
   const result_jobIds = await pool.query(
     `
-    SELECT id FROM catqueue_jobs
-    WHERE status = 'PENDING'
-    ORDER BY priority ASC, created_at ASC
-    LIMIT 50
+    WITH RECURSIVE deps AS (
+      SELECT id FROM catqueue_jobs
+      WHERE SKIP LOCKED, status = 'Pending'
+
+      UNION
+
+      SELECT jd.id, jd,depend_on
+      FROM job_dependencies jd
+      JOIN deps d ON jd.id = d.depends_on
+    )
+      SELECT DISTINCT jd.id, jd.depends_on, c.status
+      FROM deps jd
+      JOIN catqueue_jobs c ON c.id = jd.depends_on
     `,
   );
 

@@ -1,7 +1,8 @@
-import { Handler, Job } from "./types.js";
 import { Pool } from "pg";
-import { workerThread } from "./threading.js";
 import { CronJob } from "cron";
+import { Handler, Job } from "./types.js";
+import { workerThread } from "./threading.js";
+import { GraphProcess } from "./DagProcess.js";
 
 export const processNextJob = async (
   pool: Pool,
@@ -32,8 +33,38 @@ export const processNextJob = async (
 
   if (rows.length == 0) return false;
 
+  // Insert jobs into the job_dependencies table
+  const edgeIds: string[] = [];
+  const edgeDeps: string[] = [];
+  for (const job of rows) {
+    for (const dep of job.dependencies ?? []) {
+      edgeIds.push(job.id);
+      edgeDeps.push(dep);
+    }
+  }
+
+  if (edgeIds.length > 0) {
+    await pool.query(
+      `
+      INSERT INTO job_dependencies (id, depends_on)
+      SELECT * FROM UNNEST($1::uuid[], $2::uuid[])
+      ON CONFLICT DO NOTHING
+    `,
+      [edgeIds, edgeDeps],
+    );
+  }
+
+  // Make DAG here
+  const { executionOrder, cyclicJobs } = await GraphProcess(pool);
+
+  if (executionOrder.size == 0) {
+    console.log(
+      `${executionOrder.size} jobs were found in deadlock (not executed)`,
+    );
+  }
+
   const results = await Promise.allSettled(
-    rows.map((job) => workerThread(job, pool, handlers)),
+    Array.from(executionOrder).map((job) => workerThread(job, pool, handlers)),
   );
 
   const completedIds = rows
