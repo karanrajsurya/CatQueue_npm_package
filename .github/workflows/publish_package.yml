@@ -3,13 +3,14 @@ name: Publish Package
 on:
   push:
     tags:
-      - "v*"
+      - "v."
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write # needed for npm trusted publishing (OIDC, no token secret)
+      id-token: write
+      contents: read
 
     services:
       postgres:
@@ -34,9 +35,9 @@ jobs:
 
       - run: npm ci
       - run: npm run build
-      - run: npm test # never publish without re-running tests, even if CI already passed
+      - run: npm test
         env:
-          DATABASE_TEST_URL: ${{ secrets.DATABASE_TEST_URL }}
+          DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/catqueue_test_db
 
+      - run: npm install -g npm@latest
       - run: npm publish --access public
-        env: NPM_SECRET: ${{ secrets.NPM_SECRET }}

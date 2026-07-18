@@ -1,6 +1,6 @@
 {
   "name": "catqueue",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Redis-free PostgreSQL job queue",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
