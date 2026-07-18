@@ -2,11 +2,12 @@ import { Pool } from "pg";
 import {
   cleanAllCompletedJobs,
   processNextJob,
-  recoverStuckJobs,
   setAllCompletedJobsToNull,
 } from "../../worker.js";
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { Handler } from "../../types.js";
+import { recoverStuckJobs } from "../../delayedProcesses.js";
+import { randomUUID } from "node:crypto";
 
 const handlersSP = new Map<string, Handler>();
 const handlersFP = new Map<string, Handler>();
@@ -67,8 +68,16 @@ describe("processNextJob tests", () => {
     VALUES ('test-job', '{}', 'PENDING', NOW() - INTERVAL '1 minute')
     RETURNING id
   `);
-
-    const jobDone = await processNextJob(pool, handlersSP, "worker-1", 60, 1);
+    const newId = randomUUID();
+    const jobDone = await processNextJob(
+      pool,
+      newId,
+      "test-job-success",
+      handlersSP,
+      "worker-1",
+      60,
+      1,
+    );
 
     expect(jobDone).toBeTruthy();
 
@@ -84,12 +93,21 @@ describe("processNextJob tests", () => {
     const {
       rows: [inserted],
     } = await pool.query(`
-    INSERT INTO catqueue_jobs (job_name, payload, status, run_at)
-    VALUES ('test-job', '{}', 'PENDING', NOW() - INTERVAL '1 minute')
-    RETURNING id
-  `);
+      INSERT INTO catqueue_jobs (job_name, payload, status, run_at)
+      VALUES ('test-job', '{}', 'PENDING', NOW() - INTERVAL '1 minute')
+      RETURNING id
+      `);
 
-    const jobDone = await processNextJob(pool, handlersFP, "worker-1", 60, 1);
+    const newId = randomUUID();
+    const jobDone = await processNextJob(
+      pool,
+      newId,
+      "test-job-failure",
+      handlersFP,
+      "worker-1",
+      60,
+      1,
+    );
 
     expect(jobDone).toBeTruthy();
 

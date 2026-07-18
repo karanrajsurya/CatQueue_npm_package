@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { workerThread } from "../../threading";
-import { Handler, Job } from "../../types";
+import { Handler } from "../../types";
 
 const handlersFP = new Map<string, Handler>();
 
@@ -36,8 +36,8 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await pool.query(`
-        DELETE FROM catqueue_jobs
-        `);
+    DELETE FROM catqueue_jobs
+   `);
 });
 
 afterAll(async () => {

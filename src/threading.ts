@@ -9,7 +9,7 @@ export const workerThread = async (
   const { rows } = await pool.query(
     `
     SELECT * FROM catqueue_jobs
-    WHERE id = $1::uuid[]
+    WHERE id = $1::uuid
     `,
     [jobs],
   );
