@@ -1,13 +1,20 @@
 import { Pool } from "pg";
 import { randomUUID } from "crypto";
+import {
+  cronJobHandler,
+  deleteStaleIdempotencyKeys,
+} from "./delayedProcesses.js";
+import { processNextJob } from "./worker.js";
+import { recoverStuckJobs } from "./delayedProcesses.js";
 import { CatQueueConfig, Handler, JobOptions } from "./types.js";
-import { processNextJob, recoverStuckJobs, cronJob } from "./worker.js";
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export class CatQueue {
   private pool: Pool;
+  private id: string;
+  private job_name: string;
   private handlers: Map<string, Handler> = new Map();
   private running = false;
   private workerPromise?: Promise<void>;
@@ -16,7 +23,7 @@ export class CatQueue {
   private lockDuration: number;
   private batchSize: number;
   private maxAttempts: number;
-  private cron?: ReturnType<typeof cronJob>;
+  private cron?: ReturnType<typeof cronJobHandler>;
   private dependencies?: string[];
 
   constructor(config: CatQueueConfig) {
@@ -26,6 +33,8 @@ export class CatQueue {
     this.batchSize = config.batchSize ?? 50;
     this.maxAttempts = config.maxAttempts ?? 5;
     this.dependencies = config.dependencies ?? [];
+    this.id = randomUUID();
+    this.job_name = "";
   }
 
   async enqueue<T = any>(
@@ -82,7 +91,7 @@ export class CatQueue {
     if (this.running) return;
     this.running = true;
 
-    this.cron = cronJob(this.pool);
+    this.cron = cronJobHandler(this.pool);
 
     console.log(
       `[catqueue] Worker ${this.workerId} started, polling every ${this.pollInterval}ms`,
@@ -93,6 +102,10 @@ export class CatQueue {
         recoverStuckJobs(this.pool).catch(console.error);
       }, 20000);
 
+      const staleIdempotencyKeys = setInterval(() => {
+        deleteStaleIdempotencyKeys(this.pool).catch(console.error);
+      }, 3000);
+
       try {
         while (this.running) {
           let didWork = false;
@@ -100,6 +113,8 @@ export class CatQueue {
           while (
             await processNextJob(
               this.pool,
+              this.id,
+              this.job_name,
               this.handlers,
               this.workerId,
               this.lockDuration,
@@ -115,6 +130,7 @@ export class CatQueue {
         }
       } finally {
         clearInterval(recoveryInterval);
+        clearInterval(staleIdempotencyKeys);
       }
     })();
   }

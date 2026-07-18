@@ -5,18 +5,20 @@ export async function GraphProcess(pool: Pool) {
   const result_jobIds = await pool.query(
     `
     WITH RECURSIVE deps AS (
-      SELECT id FROM catqueue_jobs
-      WHERE SKIP LOCKED, status = 'Pending'
+      SELECT jd.id, jd.depends_on
+      FROM job_dependencies jd
+      JOIN catqueue_jobs c ON c.id = jd.id
+      WHERE c.status = 'PENDING'
 
       UNION
 
-      SELECT jd.id, jd,depend_on
+      SELECT jd.id, jd.depends_on
       FROM job_dependencies jd
       JOIN deps d ON jd.id = d.depends_on
     )
-      SELECT DISTINCT jd.id, jd.depends_on, c.status
-      FROM deps jd
-      JOIN catqueue_jobs c ON c.id = jd.depends_on
+    SELECT DISTINCT jd.id, jd.depends_on, c.status
+    FROM deps jd
+    JOIN catqueue_jobs c ON c.id = jd.depends_on;
     `,
   );
 

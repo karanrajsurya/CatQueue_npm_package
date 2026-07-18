@@ -180,7 +180,7 @@ const jobId = await queue.enqueue(
 );
 ```
 
-**Idempotency keys** — if you enqueue a job with an `idempotencyKey` that already exists, the insert is rejected with a unique constraint violation. Prevents duplicate emails, charges, or webhook deliveries.
+**Idempotency keys** — if you enqueue a job with an `idempotencyKey` that already exists, the insert is rejected with a unique constraint violation. Prevents duplicate emails, charges, or webhook deliveries. The stale idempotency keys are deleted which are atleast 1 minute old
 
 ---
 

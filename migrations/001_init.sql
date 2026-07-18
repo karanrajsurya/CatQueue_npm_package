@@ -15,6 +15,12 @@ CREATE TABLE IF NOT EXISTS catqueue_jobs (
   error_log       JSONB,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   completed_at    TIMESTAMPTZ
+  dependencies    ARRAY[]::VARCHAR[]
+);
+
+CREATE TABLE IF NOT EXISTS job__dependencies (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  depends_on UUID PRIMARY KEY DEFAULT gen_random_uuid()
 );
 
 CREATE INDEX IF NOT EXISTS idx_catqueue_pending 

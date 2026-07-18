@@ -1,16 +1,29 @@
 import { Pool } from "pg";
-import { CronJob } from "cron";
+import { randomUUID } from "node:crypto";
 import { Handler, Job } from "./types.js";
 import { workerThread } from "./threading.js";
 import { GraphProcess } from "./DagProcess.js";
 
 export const processNextJob = async (
   pool: Pool,
+  id: string,
+  jobName: string,
   handlers: Map<string, Handler>,
   workerId: string,
   lockDuration: number,
   batchSize: number,
 ): Promise<boolean> => {
+  const idempotency_key: string = `${id}-${jobName}-${randomUUID()}`;
+
+  const uniqueIdempotencyKey: Promise<boolean> = checkIdempotencyKey(
+    pool,
+    idempotency_key,
+  );
+  if (!uniqueIdempotencyKey) {
+    console.log(`The job with ID ${id} was found to be duplicate`);
+    return false;
+  }
+
   const { rows } = await pool.query<Job>(
     `
     UPDATE catqueue_jobs
@@ -81,28 +94,6 @@ export const processNextJob = async (
   return true;
 };
 
-export const recoverStuckJobs = async (pool: Pool): Promise<void> => {
-  await pool.query(`
-    UPDATE catqueue_jobs
-    SET status = 'PENDING', locked_until = NULL, worker_id = NULL
-    WHERE status = 'PROCESSING' AND locked_until < NOW()
-  `);
-};
-
-export const cronJob = (pool: Pool) =>
-  new CronJob(
-    "0 5 * * 1",
-    async function () {
-      const result = await cleanAllCompletedJobs(pool);
-      console.log(
-        `[catqueue] Cleanup: removed ${result.rowCount} completed jobs`,
-      );
-    },
-    null, // on completed - set null
-    true, // start automatically
-    "Asia/Kolkata",
-  );
-
 // helper functinons
 
 export async function cleanAllCompletedJobs(pool: Pool) {
@@ -136,4 +127,16 @@ export async function setAllCompletedJobsToNull(
     `,
     [completedIds],
   );
+}
+
+async function checkIdempotencyKey(pool: Pool, key: string) {
+  const result = await pool.query(
+    `
+    SELECT * FROM catqueue_jobs
+    WHERE idempotency_key = $1
+  `,
+    [key],
+  );
+
+  return result.rowCount == 0 ? true : false;
 }
