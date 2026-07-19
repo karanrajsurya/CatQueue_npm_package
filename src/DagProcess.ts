@@ -1,14 +1,13 @@
 import { Pool } from "pg";
 import { Edge } from "./types.js";
 
-export async function GraphProcess(pool: Pool) {
+export async function GraphProcess(pool: Pool, claimedIds: string[]) {
   const result_jobIds = await pool.query(
     `
     WITH RECURSIVE deps AS (
       SELECT jd.id, jd.depends_on
       FROM job_dependencies jd
-      JOIN catqueue_jobs c ON c.id = jd.id
-      WHERE c.status = 'PENDING'
+      WHERE jd.id = ANY($1)
 
       UNION
 
@@ -20,9 +19,12 @@ export async function GraphProcess(pool: Pool) {
     FROM deps jd
     JOIN catqueue_jobs c ON c.id = jd.depends_on;
     `,
+    [claimedIds],
   );
 
-  const jobIds: string[] = result_jobIds.rows.map((row) => row.id);
+  const jobIds: string[] = Array.from(
+    new Set([...claimedIds, ...result_jobIds.rows.map((r) => r.id)]),
+  );
   if (jobIds.length == 0)
     return { executionOrder: new Set<string>(), cyclicJobs: [] };
 
@@ -50,20 +52,20 @@ export async function GraphProcess(pool: Pool) {
 
   const blockedIds = new Set(result_blocked.rows.map((r) => r.id));
   const runnableIds = jobIds.filter((id) => !blockedIds.has(id));
-  const edges: Edge[] = result_edges.rows;
+  const edges: Edge[] = result_edges.rows.filter(
+    (e) => !blockedIds.has(e.id) && !blockedIds.has(e.depends_on),
+  );
 
   const { adj, indegree } = buildGraph(runnableIds, edges);
 
-  // Kahns algorithm
   const inDeg = new Map(indegree);
   let head = 0;
   const execOrder: string[] = [];
-  const queue: string[] = jobIds.filter((id) => inDeg.get(id) === 0);
+  const queue: string[] = runnableIds.filter((id) => inDeg.get(id) === 0);
 
   while (head < queue.length) {
     let node = queue[head++];
     execOrder.push(node);
-
     for (const dependent of adj.get(node)!) {
       const newDeg = inDeg.get(dependent)! - 1;
       inDeg.set(dependent, newDeg);
@@ -72,7 +74,9 @@ export async function GraphProcess(pool: Pool) {
   }
 
   const executionOrder = new Set(execOrder);
-  const cyclicJobs: string[] = jobIds.filter((job) => !executionOrder.has(job));
+  const cyclicJobs: string[] = runnableIds.filter(
+    (job) => !executionOrder.has(job),
+  );
 
   return { executionOrder, cyclicJobs };
 }

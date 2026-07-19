@@ -1,6 +1,6 @@
 {
   "name": "catqueue",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Redis-free PostgreSQL job queue",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -42,7 +42,8 @@
   },
   "devDependencies": {
     "@types/node": "^26.0.1",
-    "@types/pg": "^8.20.0"
+    "@types/pg": "^8.20.0",
+    "typescript": "^7.0.2"
   },
   "peerDependencies": {
     "pg": ">=8.0.0"

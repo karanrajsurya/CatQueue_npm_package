@@ -15,7 +15,7 @@ export const processNextJob = async (
 ): Promise<boolean> => {
   const idempotency_key: string = `${id}-${jobName}-${randomUUID()}`;
 
-  const uniqueIdempotencyKey: Promise<boolean> = checkIdempotencyKey(
+  const uniqueIdempotencyKey: boolean = await checkIdempotencyKey(
     pool,
     idempotency_key,
   );
@@ -46,7 +46,6 @@ export const processNextJob = async (
 
   if (rows.length == 0) return false;
 
-  // Insert jobs into the job_dependencies table
   const edgeIds: string[] = [];
   const edgeDeps: string[] = [];
   for (const job of rows) {
@@ -67,26 +66,26 @@ export const processNextJob = async (
     );
   }
 
-  // Make DAG here
-  const { executionOrder, cyclicJobs } = await GraphProcess(pool);
+  const claimedIds = rows.map((r) => r.id);
+  const { executionOrder, cyclicJobs } = await GraphProcess(pool, claimedIds);
 
-  if (executionOrder.size == 0) {
-    console.log(
-      `${executionOrder.size} jobs were found in deadlock (not executed)`,
-    );
+  if (cyclicJobs.length > 0) {
+    console.log(`${cyclicJobs.length} jobs excluded due to a dependency cycle`);
   }
 
+  const execArr = Array.from(executionOrder);
   const results = await Promise.allSettled(
-    Array.from(executionOrder).map((job) => workerThread(job, pool, handlers)),
+    execArr.map((job) => workerThread(job, pool, handlers)),
   );
+  const resultById = new Map(execArr.map((jobId, i) => [jobId, results[i]]));
 
   const completedIds = rows
-    .filter(
-      (_, i) => results[i].status === "fulfilled" && results[i].value === true,
-    )
-    .map((job) => job.id);
+    .filter((r) => {
+      const res = resultById.get(r.id);
+      return res?.status === "fulfilled" && res.value === true;
+    })
+    .map((r) => r.id);
 
-  // single batch UPDATE for all completed jobs
   if (completedIds.length > 0) {
     await setAllCompletedJobsToNull(pool, completedIds);
   }
@@ -132,7 +131,7 @@ export async function setAllCompletedJobsToNull(
 async function checkIdempotencyKey(pool: Pool, key: string) {
   const result = await pool.query(
     `
-    SELECT * FROM catqueue_jobs
+    SELECT 1 FROM catqueue_jobs
     WHERE idempotency_key = $1
   `,
     [key],
