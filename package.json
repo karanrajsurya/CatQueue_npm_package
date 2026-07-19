@@ -12,6 +12,7 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
+    "migrate": "node-pg-migrate up -d DATABASE_TEST_URL",
     "prepublishOnly": "npm run build"
   },
   "repository": {
@@ -43,6 +44,7 @@
   "devDependencies": {
     "@types/node": "^26.0.1",
     "@types/pg": "^8.20.0",
+    "node-pg-migrate": "^9.0.0",
     "typescript": "^7.0.2"
   },
   "peerDependencies": {
