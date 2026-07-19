@@ -6,7 +6,14 @@ import {
 } from "./delayedProcesses.js";
 import { processNextJob } from "./worker.js";
 import { recoverStuckJobs } from "./delayedProcesses.js";
-import { CatQueueConfig, Handler, JobOptions } from "./types.js";
+import {
+  CatQueueConfig,
+  Handler,
+  JobOptions,
+  Job,
+  StatsOptions,
+  StatsObject,
+} from "./types.js";
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -135,6 +142,10 @@ export class CatQueue {
     })();
   }
 
+  stats(): StatsQuery {
+    return new StatsQuery(this.pool);
+  }
+
   async stop(): Promise<void> {
     this.running = false;
 
@@ -145,5 +156,45 @@ export class CatQueue {
     }
 
     await this.pool.end();
+  }
+}
+
+class StatsQuery {
+  constructor(private pool: Pool) {}
+
+  async overview(): Promise<StatsOptions> {
+    const result = await this.pool.query<StatsObject>(
+      `SELECT status, COUNT(*)::int as count FROM catqueue_jobs GROUP BY status`,
+    );
+    return { stats: result.rows };
+  }
+
+  async failureRate(
+    window: `${number} ${"min" | "hour" | "day"}`,
+  ): Promise<number> {
+    const result = await this.pool.query<{ rate: number }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'DEAD')::float
+         / NULLIF(COUNT(*), 0) as rate
+       FROM catqueue_jobs
+       WHERE created_at > now() - $1::interval`,
+      [window],
+    );
+    return result.rows[0]?.rate ?? 0;
+  }
+
+  async retryCount(jobId: string): Promise<number> {
+    const result = await this.pool.query<{ attempt_count: number }>(
+      `SELECT attempt_count FROM catqueue_jobs WHERE id = $1`,
+      [jobId],
+    );
+    return result.rows[0]?.attempt_count ?? 0;
+  }
+
+  async deadJobs(): Promise<Job[]> {
+    const result = await this.pool.query<Job>(
+      `SELECT * FROM catqueue_jobs WHERE status = 'DEAD'`,
+    );
+    return result.rows;
   }
 }

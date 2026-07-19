@@ -47,20 +47,20 @@ afterAll(async () => {
 describe("Worker thread test", () => {
   it("declares the job dead", async () => {
     const {
-      rows: [job],
+      rows: [jobId],
     } = await pool.query(`
     INSERT INTO catqueue_jobs (job_name, payload, status, attempt_count, max_attempts)
     VALUES ('test-job', '{}', 'PENDING', 4, 5)
     RETURNING *
   `);
 
-    const jobDone = await workerThread(job, pool, handlersFP);
+    const jobDone = await workerThread(jobId.id, pool, handlersFP);
 
     expect(jobDone).toBeFalsy();
 
     const { rows } = await pool.query(
       `SELECT * FROM catqueue_jobs WHERE id = $1`,
-      [job.id],
+      [jobId.id],
     );
 
     expect(rows[0].status).toBe("DEAD");

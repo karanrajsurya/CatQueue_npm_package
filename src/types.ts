@@ -5,6 +5,16 @@ export interface Edge {
   depends_on: string;
 }
 
+export interface StatsObject {
+  status: string;
+  count: number;
+}
+
+export interface StatsOptions {
+  job?: Job;
+  stats: Array<StatsObject>;
+}
+
 export interface JobOptions {
   priority?: number;
   maxAttempts?: number;
