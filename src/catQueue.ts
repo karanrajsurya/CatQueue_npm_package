@@ -163,37 +163,43 @@ class StatsQuery {
   constructor(private pool: Pool) {}
 
   async overview(): Promise<StatsOptions> {
-    const result = await this.pool.query<StatsObject>(
-      `SELECT status, COUNT(*)::int as count FROM catqueue_jobs GROUP BY status`,
-    );
+    const result = await this.pool.query<StatsObject>(`
+      SELECT status, COUNT(*)::int FROM catqueue_jobs GROUP BY status`);
+
     return { stats: result.rows };
   }
 
   async failureRate(
-    window: `${number} ${"min" | "hour" | "day"}`,
+    timeStamp: `${number} ${"min" | "hour" | "day"}`,
   ): Promise<number> {
     const result = await this.pool.query<{ rate: number }>(
-      `SELECT
-         COUNT(*) FILTER (WHERE status = 'DEAD')::float
-         / NULLIF(COUNT(*), 0) as rate
-       FROM catqueue_jobs
-       WHERE created_at > now() - $1::interval`,
-      [window],
+      `
+      SELECT COUNT(*) FILTER(WHERE status = 'DEAD')::float
+        / NULLIF(COUNT(*), 0) AS rate
+      FROM catqueue_jobs
+      WHERE created_at > Now() - $1::interval
+    `,
+      [timeStamp],
     );
-    return result.rows[0]?.rate ?? 0;
+
+    return result.rows[0]?.rate ?? -1;
   }
 
   async retryCount(jobId: string): Promise<number> {
-    const result = await this.pool.query<{ attempt_count: number }>(
-      `SELECT attempt_count FROM catqueue_jobs WHERE id = $1`,
+    const result = await this.pool.query(
+      `SELECT attempt_count FROM catqueue_jobs WHERE id = $1
+    `,
       [jobId],
     );
-    return result.rows[0]?.attempt_count ?? 0;
+    return result.rows[0]?.attempt_count ?? -1;
   }
 
   async deadJobs(): Promise<Job[]> {
     const result = await this.pool.query<Job>(
-      `SELECT * FROM catqueue_jobs WHERE status = 'DEAD'`,
+      `
+      SELECT * FROM catqueue_jobs
+      WHERE status = 'DEAD'  
+    `,
     );
     return result.rows;
   }
