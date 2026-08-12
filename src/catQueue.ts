@@ -4,7 +4,7 @@ import {
   cronJobHandler,
   deleteStaleIdempotencyKeys,
 } from "./delayedProcesses.js";
-import { processNextJob } from "./worker.js";
+import { processNextJob } from "./process.js";
 import { recoverStuckJobs } from "./delayedProcesses.js";
 import {
   CatQueueConfig,
@@ -49,6 +49,8 @@ export class CatQueue {
     payload: T,
     options: JobOptions = {},
   ): Promise<string> {
+    const idempotency_key: string = `${this.id}-${jobName}-${randomUUID()}`;
+
     const { rows } = await this.pool.query(
       `
       INSERT INTO catqueue_jobs (job_name, payload, priority, max_attempts, run_at, idempotency_key)
@@ -61,7 +63,7 @@ export class CatQueue {
         options.priority ?? 3,
         options.maxAttempts ?? 5,
         options.runAt ?? new Date(),
-        options.idempotencyKey ?? null,
+        idempotency_key,
       ],
     );
     return rows[0].id;
@@ -120,8 +122,6 @@ export class CatQueue {
           while (
             await processNextJob(
               this.pool,
-              this.id,
-              this.job_name,
               this.handlers,
               this.workerId,
               this.lockDuration,

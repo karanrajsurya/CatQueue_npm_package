@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import { CronJob } from "cron";
-import { cleanAllCompletedJobs } from "./worker";
+import { cleanAllCompletedJobs } from "./process";
 
 export async function deleteStaleIdempotencyKeys(pool: Pool) {
   await pool.query(`

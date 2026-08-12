@@ -184,7 +184,7 @@ const jobId = await queue.enqueue(
 
 ---
 
-### `queue.register(jobName, handler)`
+## `queue.register(jobName, handler)`
 
 Registers a handler for a job type. Must be called before `queue.start()`.
 
@@ -198,9 +198,7 @@ queue.register<{ to: string; subject: string }>(
 );
 ```
 
----
-
-### `queue.start()`
+## `queue.start()`
 
 Starts the worker loop. Polls continuously while jobs are available, sleeps for `pollInterval` ms when the queue is empty.
 
@@ -212,9 +210,7 @@ Each poll cycle:
 4. On success → batch `UPDATE status = COMPLETED`
 5. On failure → retry with exponential backoff or move to `DEAD`
 
----
-
-### `queue.stop()`
+## `queue.stop()`
 
 Gracefully stops the worker and closes the database pool.
 
@@ -224,6 +220,23 @@ process.on("SIGINT", async () => {
   process.exit(0);
 });
 ```
+
+## `queue.stats.overview()`
+
+Gives an overview of the current stats of the queue. It groups all the jobs by status and returns the number of each.
+
+## `queue.stats.failureRate()`
+
+Returns the failure rate (truncated till two decimal places) of the jobs per the specified time.
+For eg. - "6 min", "2 hour" and "3 day".
+
+## `queue.stats.retryCount()`
+
+Takes jobId as input string and returns the number of attempts that are done for the given job.
+
+## `queue.stats.deadJobs()`
+
+Simply returns all the jobs in the database which have status as 'DEAD'.
 
 ---
 
