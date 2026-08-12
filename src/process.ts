@@ -47,16 +47,32 @@ export const processNextJob = async (
     }
   }
 
-  if (edgeIds.length > 0) {
-    await pool.query(
-      `
+  if (edgeIds.length == 0) {
+    const results = await Promise.allSettled(
+      rows.map((job) => workerThread(job, pool, handlers)),
+    );
+
+    const completedIds = rows
+      .filter((_, i) => {
+        const res = results[i];
+        return res.status === "fulfilled" && res.value === true;
+      })
+      .map((r) => r.id);
+
+    if (completedIds.length > 0) {
+      await setAllCompletedJobsToNull(pool, completedIds);
+    }
+
+    return true;
+  }
+  await pool.query(
+    `
       INSERT INTO job_dependencies (id, depends_on)
       SELECT * FROM UNNEST($1::uuid[], $2::uuid[])
       ON CONFLICT DO NOTHING
     `,
-      [edgeIds, edgeDeps],
-    );
-  }
+    [edgeIds, edgeDeps],
+  );
 
   const claimedIds = rows.map((r) => r.id);
   const { executionOrder, cyclicJobs } = await GraphProcess(pool, claimedIds);

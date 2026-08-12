@@ -15,7 +15,7 @@ export const workerThread = async (
       );
       await pool.query(
         `
-        UPDATE FROM catqueue_jobs
+        UPDATE catqueue_jobs
         SET status = 'PENDING', worker_id = NULL, locked_until = NULL
         WHERE id = $1
       `,
