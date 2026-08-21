@@ -1,3 +1,5 @@
+import { Pool } from "pg";
+
 export type Handler<T = any> = (payload: T) => Promise<void>;
 
 export interface Edge {
@@ -29,6 +31,8 @@ export interface CatQueueConfig {
   batchSize?: number;
   maxAttempts?: number;
   dependencies?: string[];
+  maxPoolSize: number;
+  pool?: Pool;
 }
 
 export interface Job {

@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import { CronJob } from "cron";
-import { cleanAllCompletedJobs } from "./process";
+import { cleanCompletedJobs } from "./inQueueProcesses";
 
 export async function deleteStaleIdempotencyKeys(pool: Pool) {
   await pool.query(`
@@ -25,7 +25,7 @@ export const cronJobHandler = (pool: Pool) =>
   new CronJob(
     "0 5 * * 1",
     async function () {
-      const result = await cleanAllCompletedJobs(pool);
+      const result = await cleanCompletedJobs(pool);
       console.log(
         `[catqueue] Cleanup: removed ${result.rowCount} completed jobs`,
       );

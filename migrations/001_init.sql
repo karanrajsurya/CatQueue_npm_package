@@ -1,4 +1,4 @@
-CREATE TYPE catqueue_status AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'DEAD');
+CREATE TYPE catqueue_status AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'DEAD', 'CYCLIC');
 
 CREATE TABLE IF NOT EXISTS catqueue_jobs (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS catqueue_jobs (
   locked_until    TIMESTAMPTZ,
   worker_id       TEXT,
   idempotency_key TEXT UNIQUE,
-  error_log       JSONB,
+  error_log       JSONB DEFAULT NULL,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   completed_at    TIMESTAMPTZ,
   dependencies    VARCHAR[] DEFAULT '{}'
@@ -24,6 +24,6 @@ CREATE TABLE IF NOT EXISTS job_dependencies (
   depends_on UUID NOT NULL REFERENCES catqueue_jobs(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_catqueue_pending
-  ON catqueue_jobs (priority ASC, run_at ASC)
-  WHERE status = 'PENDING';
+CREATE INDEX idx_catqueue_claim ON catqueue_jobs (job_name, priority ASC, created_at ASC) WHERE status = 'PENDING';
+CREATE INDEX IF NOT EXISTS idx_job_deps_job_id ON job_dependencies (job_id);
+CREATE INDEX IF NOT EXISTS idx_job_deps_depends_on ON job_dependencies (depends_on);

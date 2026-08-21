@@ -4,7 +4,7 @@ import {
   cronJobHandler,
   deleteStaleIdempotencyKeys,
 } from "./delayedProcesses.js";
-import { processNextJob } from "./process.js";
+import { processNextBatch } from "./process.js";
 import { recoverStuckJobs } from "./delayedProcesses.js";
 import {
   CatQueueConfig,
@@ -20,6 +20,7 @@ const sleep = (ms: number) =>
 
 export class CatQueue {
   private pool: Pool;
+  private isExternalPool: boolean = false;
   private id: string;
   private job_name: string;
   private handlers: Map<string, Handler> = new Map();
@@ -32,12 +33,23 @@ export class CatQueue {
   private maxAttempts: number;
   private cron?: ReturnType<typeof cronJobHandler>;
   private dependencies?: string[];
+  private maxPoolSize?: number;
 
   constructor(config: CatQueueConfig) {
-    this.pool = new Pool({ connectionString: config.connectionString });
+    this.maxPoolSize = config.maxPoolSize;
+    if (config.pool) {
+      this.pool = config.pool;
+      this.isExternalPool = true;
+    } else {
+      this.pool = new Pool({
+        connectionString: config.connectionString,
+        max: this.maxPoolSize ?? 20,
+      });
+    }
     this.pollInterval = config.pollInterval ?? 1000;
     this.lockDuration = config.lockDuration ?? 30;
-    this.batchSize = config.batchSize ?? 50;
+    const n = Number(config.batchSize ?? 50);
+    this.batchSize = Number.isInteger(n) ? Math.max(1, n) : 50;
     this.maxAttempts = config.maxAttempts ?? 5;
     this.dependencies = config.dependencies ?? [];
     this.id = randomUUID();
@@ -49,12 +61,15 @@ export class CatQueue {
     payload: T,
     options: JobOptions = {},
   ): Promise<string> {
-    const idempotency_key: string = `${this.id}-${jobName}-${randomUUID()}`;
+    let idempotency_key: string = "";
+    if (!options.idempotencyKey) {
+      idempotency_key = `${this.id}-${jobName}-${randomUUID()}`;
+    }
 
     const { rows } = await this.pool.query(
       `
-      INSERT INTO catqueue_jobs (job_name, payload, priority, max_attempts, run_at, idempotency_key)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO catqueue_jobs (job_name, payload, priority, max_attempts, run_at, idempotency_key, dependencies)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
     `,
       [
@@ -64,6 +79,7 @@ export class CatQueue {
         options.maxAttempts ?? 5,
         options.runAt ?? new Date(),
         idempotency_key,
+        this.dependencies,
       ],
     );
     return rows[0].id;
@@ -77,7 +93,11 @@ export class CatQueue {
     const priorities = jobs.map((j) => j.options?.priority ?? 3);
     const maxAttempts = jobs.map((j) => j.options?.maxAttempts ?? 5);
     const runAts = jobs.map((j) => j.options?.runAt ?? new Date());
-    const idempotencyKeys = jobs.map((j) => j.options?.idempotencyKey ?? null);
+    const idempotencyKeys = jobs.map((j) =>
+      j.options?.idempotencyKey
+        ? j.options.idempotencyKey
+        : `${this.id}-${j.jobName}-${randomUUID()}`,
+    );
 
     const { rows } = await this.pool.query(
       `
@@ -102,10 +122,6 @@ export class CatQueue {
 
     this.cron = cronJobHandler(this.pool);
 
-    console.log(
-      `[catqueue] Worker ${this.workerId} started, polling every ${this.pollInterval}ms`,
-    );
-
     this.workerPromise = (async () => {
       const recoveryInterval = setInterval(() => {
         recoverStuckJobs(this.pool).catch(console.error);
@@ -120,7 +136,7 @@ export class CatQueue {
           let didWork = false;
 
           while (
-            await processNextJob(
+            await processNextBatch(
               this.pool,
               this.handlers,
               this.workerId,
@@ -155,7 +171,9 @@ export class CatQueue {
       await this.workerPromise;
     }
 
-    await this.pool.end();
+    if (!this.isExternalPool) {
+      await this.pool.end();
+    }
   }
 }
 
